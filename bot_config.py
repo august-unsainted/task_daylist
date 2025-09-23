@@ -1,0 +1,5 @@
+from bot_constructor.bot_config import BotConfig
+
+config = BotConfig()
+db = config.db
+messages, texts, kbs = config.messages, config.texts, config.keyboards

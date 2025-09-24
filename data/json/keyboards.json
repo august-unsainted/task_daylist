@@ -4,7 +4,7 @@
       "delete": "Отменить \uD83D\uDDD1",
       "edit": "Изменить ✏"
     },
-    "save": "Понятно \uD83D\uDC4D"
+    "message_delete": "Понятно \uD83D\uDC4D"
   },
   "view": {
     "move": "Перенести на завтра \uD83D\uDCC6",
@@ -14,6 +14,12 @@
     }
   },
   "view_checked": {
-    "delete": "Удалить запись \uD83D\uDDD1"
+    "": {
+      "delete": "Удалить \uD83D\uDDD1",
+      "message_delete": "Понятно \uD83D\uDC4D"
+    }
+  },
+  "okay": {
+    "message_delete": "Понятно \uD83D\uDC4D"
   }
 }

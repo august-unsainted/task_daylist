@@ -98,4 +98,3 @@ def get_tomorrow(date: str = None) -> datetime:
 
 def weekday_date(date: datetime) -> str:
     return date.strftime('%d.%m, %a').lower()
-

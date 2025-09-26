@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 
 from bot_config import *
 from utils.schedule import schedule_task, delete_schedule
-from utils.time import now, convert_to_date, to_str, get_tomorrow, now_date
+from utils.time import now, convert_to_date, to_str, get_tomorrow, now_date, to_date
 
 router = Router()
 
@@ -17,15 +17,26 @@ class EditStates(StatesGroup):
 
 
 def get_add_args(text: str, _id: int, query: str) -> dict:
-    if ' [' not in text:
-        return {'text': 'Неправильный формат'}
-    task, date = text.strip().split(' [')
-    date = date[:-1]
-    day, time = date.split(', ')
-    answer_text = texts.get('new').format(day, task, time)
-    full_date = convert_to_date(date)
-    task_id = db.execute_query(query, task, now(), full_date.timestamp(), date, _id)
-    schedule_task(task_id, full_date)
+    if '[' not in text:
+        task = text
+        date = get_tomorrow()
+        date_str = date.strftime('%Y-%m-%d')
+    else:
+        text = text.strip()
+        start, end = text.find('['), text.find(']')
+        task, date_str = text[:start] or text[end + 1:], text[start + 1:end + 1]
+        date_str = date_str[:-1]
+        date = to_date(date_str)
+
+    if date is None:
+        return {'text': f'Неверный формат!\n\n<blockquote>{text}</blockquote>', 'parse_mode': 'HTML'}
+    answer_text = texts.get('new').format(date.strftime('%d.%m'), task)
+    format = '%Y-%m-%d'
+    if '0:0' in date_str or date.hour or date.minute:
+        answer_text += texts.get('notification_time').format(date.strftime('%H:%M'))
+        format += ' %H:%M'
+    task_id = db.execute_query(query, task, now(), date.strftime(format), _id)
+    schedule_task(task_id, date)
     kb = config.edit_keyboard(task_id, 'new')
     return {'text': answer_text, 'parse_mode': 'HTML', 'reply_markup': kb}
 
@@ -49,8 +60,7 @@ async def set_edit_task(callback: CallbackQuery, state: FSMContext):
 @router.message(EditStates.text)
 async def edit_task(message: Message, state: FSMContext):
     data = await state.get_data()
-    query = ('update tasks set text = ?, creation_date = ?, notification_stamp = ?, notification_date = ? '
-             'where id = ?')
+    query = 'update tasks set text = ?, creation_date = ?, notification_date = ? where id = ?'
     args = get_add_args(message.text, data['task'], query)
     await message.delete()
     await message.bot.edit_message_text(message_id=data.get('message'), chat_id=message.chat.id,
@@ -60,11 +70,10 @@ async def edit_task(message: Message, state: FSMContext):
 
 @router.message()
 async def add_task(message: Message):
-    query = ('insert into tasks (text, creation_date, notification_stamp, notification_date, user_id) '
-             'values (?, ?, ?, ?, ?)')
+    query = 'insert into tasks (text, creation_date, notification_date, user_id) values (?, ?, ?, ?)'
     if message.text == 'тест':
         next_min_date = now_date() + timedelta(minutes=1)
-        date = next_min_date.strftime('%d.%m.%y, %H:%M')
+        date = next_min_date.strftime('%d.%m %H:%M')
         args = get_add_args(f'новое задание [{date}]', message.from_user.id, query)
     else:
         args = get_add_args(message.text, message.from_user.id, query)
@@ -88,10 +97,10 @@ async def move_task(callback: CallbackQuery):
     if not tasks:
         return
     task = tasks[0]
-    query = 'update tasks set notification_stamp = ?, notification_date = ? where id = ?'
+    query = 'update tasks set notification_date = ? where id = ?'
     new_date = get_tomorrow(task['notification_date'])
     new_date_str = to_str(new_date, False)
-    db.execute_query(query, new_date.timestamp(), new_date_str, task_id)
+    db.execute_query(query, new_date_str, task_id)
     date, time = new_date_str.split(' ')
     answer_text = texts.get('move').format(date, time, task['text'])
     kb = config.edit_keyboard(task_id, 'view_checked')

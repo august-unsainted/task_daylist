@@ -26,17 +26,21 @@ def get_add_args(text: str, _id: int, query: str) -> dict:
         start, end = text.find('['), text.find(']')
         task, date_str = text[:start] or text[end + 1:], text[start + 1:end + 1]
         date_str = date_str[:-1]
+        if 'сегодня' in date_str:
+            date_str = date_str.replace('сегодня', now_date().strftime('%d.%m'))
         date = to_date(date_str)
 
     if date is None:
-        return {'text': f'Неверный формат!\n\n<blockquote>{text}</blockquote>', 'parse_mode': 'HTML'}
+        return {'text': f'Неверный формат!\n\n<blockquote><code>{text}</code></blockquote>', 'parse_mode': 'HTML'}
     answer_text = texts.get('new').format(date.strftime('%d.%m'), task)
-    format = '%Y-%m-%d'
-    if '0:0' in date_str or date.hour or date.minute:
-        answer_text += texts.get('notification_time').format(date.strftime('%H:%M'))
-        format += ' %H:%M'
-    task_id = db.execute_query(query, task, now(), date.strftime(format), _id)
-    schedule_task(task_id, date)
+    date_format = '%Y-%m-%d'
+    has_time = '0:0' in date_str or date.hour or date.minute
+    if has_time:
+        answer_text += '\n\n' + texts.get('notification_time').format(date.strftime('%H:%M'))
+        date_format += ' %H:%M'
+    task_id = db.execute_query(query, task, now(), date.strftime(date_format), _id)
+    if has_time:
+        schedule_task(task_id, date)
     kb = config.edit_keyboard(task_id, 'new')
     return {'text': answer_text, 'parse_mode': 'HTML', 'reply_markup': kb}
 
@@ -85,7 +89,9 @@ async def add_task(message: Message):
 async def done_task(callback: CallbackQuery):
     task_id = callback.data.split('_')[-1]
     db.execute_query('update tasks set end_date = ? where id = ?', now(), task_id)
-    text = f'{callback.message.text}\n\n✅ Выполнено: {to_str()}'
+    mess_text = callback.message.text
+    mess_text += '\n' if '🕓 Создано:' in mess_text else '\n\n'
+    text = f'{mess_text}✅ Выполнено: {to_str()}'
     kb = config.edit_keyboard(task_id, 'view_checked')
     await callback.message.edit_text(text=text, reply_markup=kb)
 

@@ -52,14 +52,14 @@ def find_year(date: str, has_time: bool = True) -> datetime | None:
 
 
 def to_date(date_str: str) -> datetime | None:
+    date_str = date_str.strip()
     date, time = None, None
     if ':' in date_str and '.' in date_str:
         date, time = date_str.split()
-    elif '.' in date_str:
-        date = pad(date_str.strip(), '.')
-    else:
-        time = pad(date_str.strip(), ':')
-
+    if '.' in date_str:
+        date = pad(date or date_str, '.')
+    if ':' in date_str:
+        time = pad(time or date_str, ':')
     try:
         if date and time:
             return find_year(f'{date} {time}')
@@ -86,7 +86,7 @@ def convert_to_date(date_time_str: str) -> datetime:
 
 def get_tomorrow(date: str = None) -> datetime:
     tomorrow = now_date() + timedelta(days=1)
-    if date:
+    if date and ' ' in date:
         time = datetime.strptime(date.split()[-1], '%H:%M').time()
         # date_str = date.strftime('%Y-%m-%d')
         hour, minute = time.hour, time.minute
@@ -97,4 +97,7 @@ def get_tomorrow(date: str = None) -> datetime:
 
 
 def weekday_date(date: datetime) -> str:
-    return date.strftime('%d.%m, %a').lower()
+    result = date.strftime('%d %B, %a').lower()
+    if result[0] == '0':
+        result = result[1:]
+    return result

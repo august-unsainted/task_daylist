@@ -96,8 +96,16 @@ def get_tomorrow(date: str = None) -> datetime:
     return tomorrow
 
 
-def weekday_date(date: datetime) -> str:
+def get_weekday(date: datetime) -> str:
     result = date.strftime('%d %B, %a').lower()
     if result[0] == '0':
         result = result[1:]
     return result
+
+
+def get_week(date: datetime) -> tuple[datetime, datetime]:
+    days_since_monday = date.weekday()
+    days_before_sunday = 6 - date.weekday()
+    monday = date - timedelta(days=days_since_monday)
+    sunday = date + timedelta(days=days_before_sunday)
+    return monday, sunday

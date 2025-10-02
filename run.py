@@ -1,7 +1,7 @@
 import asyncio
 from aiogram import Bot, Dispatcher
 
-from handlers import view_tasks, new_task
+from handlers import start, edit_time, view_tasks, new_task
 
 from config import TOKEN
 from utils.schedule import scheduler
@@ -11,7 +11,7 @@ dp = Dispatcher()
 
 
 async def main():
-    dp.include_routers(view_tasks.router, new_task.router)
+    dp.include_routers(start.router, edit_time.router, view_tasks.router, new_task.router)
     scheduler.start()
     await dp.start_polling(bot, skip_updates=True)
 

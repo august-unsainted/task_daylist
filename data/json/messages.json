@@ -7,5 +7,8 @@
   "notification_time": "\uD83D\uDD53 Время уведомления: {0}",
   "no_tasks": "Заданий на эту дату нет.",
   "completed_tasks": "✅ <b>Выполненные задания за неделю с {0} по {1}:</b>",
-  "no_completed_tasks": "Выполненных заданий за эту неделю нет."
+  "no_completed_tasks": "Выполненных заданий за эту неделю нет.",
+  "error": "Неверный формат!\n\n<blockquote><code>{0}</code></blockquote>",
+  "edit_time": "\uD83D\uDD53 Время успешно изменено на {0}",
+  "start": "Привет! Эщкере))"
 }

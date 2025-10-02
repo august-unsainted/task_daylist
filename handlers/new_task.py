@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
@@ -6,8 +7,9 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 
 from bot_config import *
+from handlers.view_tasks import get_id
 from utils.schedule import schedule_task, delete_schedule
-from utils.time import now, convert_to_date, to_str, get_tomorrow, now_date, to_date
+from utils.time import now, convert_to_date, to_str, get_tomorrow, now_date, to_date, TASK_REG, format_date
 
 router = Router()
 
@@ -17,37 +19,37 @@ class EditStates(StatesGroup):
 
 
 def get_add_args(text: str, _id: int, query: str) -> dict:
+    match = re.fullmatch(TASK_REG, text)
+    date = time = task = ''
     if '[' not in text:
         task = text
         date = get_tomorrow()
-        date_str = date.strftime('%Y-%m-%d')
-    else:
-        text = text.strip()
-        start, end = text.find('['), text.find(']')
-        task, date_str = text[:start] or text[end + 1:], text[start + 1:end + 1]
-        date_str = date_str[:-1]
-        if 'сегодня' in date_str:
-            date_str = date_str.replace('сегодня', now_date().strftime('%d.%m'))
-        date = to_date(date_str)
-
-    if date is None:
-        return {'text': f'Неверный формат!\n\n<blockquote><code>{text}</code></blockquote>', 'parse_mode': 'HTML'}
-    answer_text = texts.get('new').format(date.strftime('%d.%m'), task)
+    elif match:
+        groups = match.groups()
+        task = groups[0] or groups[-1]
+        date, year, time = groups[1:4]
+        if not date or not date.replace('.', '').isdigit():
+            date = now_date() if date == 'сегодня' else get_tomorrow()
+            date = date.strftime('%d.%m')
+        date = to_date(date, time)
+    if not date:
+        return {'text': texts.get('error').format(text), 'parse_mode': 'HTML'}
+    answer_text = texts.get('new').format(format_date(date), task)
     date_format = '%Y-%m-%d'
-    has_time = '0:0' in date_str or date.hour or date.minute
+    has_time = '0:0' in str(time) or date.hour or date.minute
     if has_time:
-        answer_text += '\n\n' + texts.get('notification_time').format(date.strftime('%H:%M'))
         date_format += ' %H:%M'
     task_id = db.execute_query(query, task, now(), date.strftime(date_format), _id)
     if has_time:
         schedule_task(task_id, date)
+        answer_text += '\n\n' + texts.get('notification_time').format(date.strftime('%H:%M'))
     kb = config.edit_keyboard(task_id, 'new')
     return {'text': answer_text, 'parse_mode': 'HTML', 'reply_markup': kb}
 
 
 @router.callback_query(F.data.startswith('delete'))
 async def delete_task(callback: CallbackQuery):
-    task_id = callback.data.split('_')[-1]
+    task_id = get_id(callback)
     db.execute_query('delete from tasks where id = ?', task_id)
     delete_schedule(task_id)
     await callback.message.edit_text(texts.get('delete'), reply_markup=kbs.get('okay'))
@@ -56,8 +58,7 @@ async def delete_task(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('edit'))
 async def set_edit_task(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text('Введите текст')
-    task_id = callback.data.split('_')[-1]
-    await state.update_data(message=callback.message.message_id, task=task_id)
+    await state.update_data(message=callback.message.message_id, task=get_id(callback))
     await state.set_state(EditStates.text)
 
 
@@ -65,10 +66,9 @@ async def set_edit_task(callback: CallbackQuery, state: FSMContext):
 async def edit_task(message: Message, state: FSMContext):
     data = await state.get_data()
     query = 'update tasks set text = ?, creation_date = ?, notification_date = ? where id = ?'
-    args = get_add_args(message.text, data['task'], query)
+    args = get_add_args(message.text, data.get('task'), query)
     await message.delete()
-    await message.bot.edit_message_text(message_id=data.get('message'), chat_id=message.chat.id,
-                                        **args)
+    await message.bot.edit_message_text(message_id=data.get('message'), chat_id=message.chat.id, **args)
     await state.clear()
 
 
@@ -87,7 +87,7 @@ async def add_task(message: Message):
 
 @router.callback_query(F.data.startswith('done'))
 async def done_task(callback: CallbackQuery):
-    task_id = callback.data.split('_')[-1]
+    task_id = get_id(callback)
     db.execute_query('update tasks set end_date = ? where id = ?', now(), task_id)
     mess_text = callback.message.text
     mess_text += '\n' if '🕓 Создано:' in mess_text else '\n\n'
@@ -98,7 +98,7 @@ async def done_task(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('move'))
 async def move_task(callback: CallbackQuery):
-    task_id = callback.data.split('_')[-1]
+    task_id = get_id(callback)
     tasks = db.execute_query('select * from tasks where id = ?', task_id)
     if not tasks:
         return
@@ -120,4 +120,3 @@ async def delete_message(callback: CallbackQuery):
     except TelegramBadRequest:
         print('чет не удаляется')
         pass
-

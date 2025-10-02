@@ -8,11 +8,15 @@ from humanize import naturalday
 
 from bot_config import *
 from utils.keyboards import get_pagination_kb, btn, markup
-from utils.time import now_date, get_weekday, to_str, to_db_str, reformat_db_str, get_tomorrow, get_week
+from utils.time import now_date, get_weekday, to_str, to_db_str, reformat_db_str, get_tomorrow, get_week, format_date
 
 _t = humanize.i18n.activate("ru_RU")
 
 router = Router()
+
+
+def get_id(callback: CallbackQuery) -> str:
+    return callback.data.split('_')[-1]
 
 
 def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int) -> tuple[list[list[InlineKeyboardButton]], bool]:
@@ -22,10 +26,9 @@ def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int) -> 
     end = start + config.entries_on_page
     page_tasks = tasks[start:end]
     for task in page_tasks:
-        text = task['text']
-        date = task['notification_date']
+        text, date = task['text'], task['notification_date']
         if ':' in date:
-            text = date.split()[-1] + ' ' + text
+            text = date.split()[-1][:-3] + ' ' + text
         if len(text) > 30:
             text = text[:31] + '…'
         kb.append([btn(text, f"view_{task['id']}")])
@@ -34,30 +37,30 @@ def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int) -> 
     if not page_tasks:
         additional = True
     elif len(tasks) > config.entries_on_page:
-        kb.insert(-1, get_pagination_kb(callback, page, len(tasks), config.entries_on_page))
+        kb.append(get_pagination_kb(callback, page, len(tasks), config.entries_on_page))
+        # kb.insert(-1, )
     return kb, additional
 
 
 def get_page(date_str: str, user_id: int, page: int) -> tuple[str, InlineKeyboardMarkup]:
     query = f'''
     select * from tasks
-    where notification_date like '{date_str}%' and end_date is NULL and user_id = ?
-    order by notification_date
+    where notification_date like '{date_str}%' and end_date is NULL and end_date is NULL and user_id = ?
+    order by
+        case when notification_date not like '%:%' THEN 1 ELSE 0 END,
+        notification_date
     '''
+    print(query)
     tasks = db.execute_query(query, user_id)
     kb, additional = generate_tasks_kb(date_str, tasks, page)
-
     date = datetime.strptime(date_str, '%Y-%m-%d')
-    natural_day = naturalday(date)
-    weekday = get_weekday(date)
-    if natural_day == 'сегодня':
-        text = texts.get('today_tasks').format(weekday)
+    natural_day = format_date(date)
+    if 'сегодня' in natural_day:
+        text = texts.get('today_tasks').format(natural_day)
         tomorrow = to_db_str(get_tomorrow()).split()[0]
         kb.append([btn('Задачи на завтра ▶\uFE0F', f'list_{tomorrow}')])
     else:
-        if natural_day != date.strftime('%b %d'):
-            weekday = f'{natural_day} ({weekday})'
-        text = texts.get('tasks').format(weekday)
+        text = texts.get('tasks').format(natural_day)
         row = []
         for symb in ['◀️', '▶️']:
             is_prev = symb == '◀️'
@@ -74,29 +77,35 @@ def get_page(date_str: str, user_id: int, page: int) -> tuple[str, InlineKeyboar
     return text, markup(kb)
 
 
+async def get_today_tasks(user_id: int):
+    date_str = to_db_str(now_date()).split()[0]
+    return get_page(date_str, user_id, 1)
+
+
 @router.message(Command('list'))
 async def view_tasks(message: Message):
-    date_str = to_db_str(now_date()).split()[0]
-    text, kb = get_page(date_str, message.from_user.id, 1)
-    await message.answer(text=text, parse_mode='HTML', reply_markup=kb)
+    text, kb = await get_today_tasks(message.from_user.id)
+    await message.answer(text=text, reply_markup=kb, parse_mode='HTML')
 
 
 @router.callback_query(F.data.startswith('view'))
 async def view_task(callback: CallbackQuery):
-    task_id = callback.data.split('_')[-1]
+    task_id = get_id(callback)
     task = db.execute_query('select * from tasks where id = ? order by notification_date', task_id)[0]
     text = f'{task['text']}\n\n🕓 Создано: {reformat_db_str(task['creation_date'])}'
+    back = 'list'
     if task['end_date']:
         text += f'\n✅ Выполнено: {reformat_db_str(task['end_date'])}'
+        back = 'completed'
     kb = config.edit_keyboard(task_id, 'view')
     date_info = task['notification_date'].split()[0]
-    kb.inline_keyboard.append([btn('◀️ Назад', f'list_{date_info}')])
+    kb.inline_keyboard.append([btn('◀️ Назад', f'{back}_{date_info}')])
     await callback.message.edit_text(text=text, reply_markup=kb)
 
 
 @router.callback_query(F.data.startswith('list'))
 async def view_tasks_list(callback: CallbackQuery):
-    date_str = callback.data.split('_')[-1]
+    date_str = get_id(callback)
     text, kb = get_page(date_str, callback.from_user.id, 1)
     await callback.message.edit_text(text, reply_markup=kb, parse_mode='HTML')
 
@@ -148,6 +157,6 @@ async def view_completed_tasks(message: Message):
 
 @router.callback_query(F.data.startswith('completed'))
 async def view_completed(callback: CallbackQuery):
-    date = datetime.strptime(callback.data.split('_')[-1], '%Y-%m-%d')
+    date = datetime.strptime(get_id(callback), '%Y-%m-%d')
     text, kb = get_completed_tasks(date, callback.from_user.id)
     await callback.message.edit_text(text=text, parse_mode='HTML', reply_markup=kb)

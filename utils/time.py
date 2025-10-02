@@ -42,7 +42,7 @@ def to_db_str(date: datetime = None) -> str:
 
 
 def reformat_db_str(date_str: str = None) -> str:
-    date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:00')
+    date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
     return to_str(date)
 
 

@@ -35,7 +35,6 @@ async def send_today(user_id: int):
     yesterday = reset_time(now_date() - timedelta(days=1))
     query = (f"UPDATE tasks SET notification_date = datetime(notification_date, '+1 day') "
              f"where notification_date like '{to_db_str(yesterday)}%' and user_id = ?")
-    print(query)
     db.execute_query(query, user_id)
     text, kb = await get_today_tasks(user_id)
     await send_mess(user_id, text, kb)

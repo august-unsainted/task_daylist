@@ -8,7 +8,7 @@ from humanize import naturalday
 locale.setlocale(locale.LC_ALL, 'ru_RU')
 TIME_REG = r'(?:[0-1]?[0-9]|2[0-3]):[0-5][0-9]'
 DATE_REG = r'(?:0?[1-9]|[1-2]?[0-9]|3[0-1])\.(?:0?[1-9]|1[0-2])(\.\d{2})?'
-TASK_REG = rf'(.*?) *(?:\[({DATE_REG}|сегодня)? *(?:({TIME_REG}))? *\]) *(.*)'
+TASK_REG = rf'(.*?) *(?:\[({DATE_REG}|сегодня|завтра|послезавтра)?,? *(?:({TIME_REG}))? *\]) *(.*)'
 
 
 def now_date() -> datetime:
@@ -43,7 +43,7 @@ def to_db_str(date: datetime = None) -> str:
 
 def reformat_db_str(date_str: str = None) -> str:
     date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
-    return to_str(date)
+    return format_date(date) + ' в ' + date.strftime('%H:%M')
 
 
 def replace_date(match) -> str:
@@ -120,9 +120,9 @@ def get_weekday(date: datetime) -> str:
 def format_date(date: datetime) -> str:
     natural_day = naturalday(date)
     weekday = get_weekday(date)
-    if natural_day != date.strftime('%b %d'):
-        weekday = f'{natural_day} ({weekday})'
-    return weekday
+    if natural_day == date.strftime('%b %d'):
+        return re.sub(r', (\w+)', r' (\1)', weekday)
+    return f'{natural_day} ({weekday})'
 
 
 def get_week(date: datetime) -> tuple[datetime, datetime]:

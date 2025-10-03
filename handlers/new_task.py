@@ -29,16 +29,21 @@ def get_add_args(text: str, _id: int, query: str) -> dict:
         task = groups[0] or groups[-1]
         date, year, time = groups[1:4]
         if not date or not date.replace('.', '').isdigit():
-            date = now_date() if date == 'сегодня' else get_tomorrow()
+            if date == 'сегодня':
+                date = now_date()
+            elif date == 'послезавтра':
+                date = now_date() + timedelta(days=2)
+            else:
+                date = get_tomorrow()
             date = date.strftime('%d.%m')
         date = to_date(date, time)
     if not date:
-        return {'text': texts.get('error').format(text), 'parse_mode': 'HTML'}
+        return {'text': texts.get('error').format('текст [ДД.ММ ЧЧ:ММ]', text), 'parse_mode': 'HTML'}
     answer_text = texts.get('new').format(format_date(date), task)
     date_format = '%Y-%m-%d'
     has_time = '0:0' in str(time) or date.hour or date.minute
     if has_time:
-        date_format += ' %H:%M'
+        date_format += ' %H:%M:00'
     task_id = db.execute_query(query, task, now(), date.strftime(date_format), _id)
     if has_time:
         schedule_task(task_id, date)

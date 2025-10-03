@@ -13,7 +13,7 @@
       "done": "Готово ✅"
     }
   },
-  "view_checked": {
+  "completed": {
     "": {
       "delete": "Удалить \uD83D\uDDD1",
       "message_delete": "Понятно \uD83D\uDC4D"

@@ -1,3 +1,4 @@
+import re
 from datetime import datetime, timedelta
 
 import humanize
@@ -19,16 +20,20 @@ def get_id(callback: CallbackQuery) -> str:
     return callback.data.split('_')[-1]
 
 
-def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int) -> tuple[list[list[InlineKeyboardButton]], bool]:
+def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int, field: str) -> tuple[list[list[InlineKeyboardButton]], bool]:
     kb = []
     i = page - 1
     start = i * config.entries_on_page
     end = start + config.entries_on_page
     page_tasks = tasks[start:end]
     for task in page_tasks:
-        text, date = task['text'], task['notification_date']
+        text, date = task['text'], task[field]
         if ':' in date:
-            text = date.split()[-1][:-3] + ' ' + text
+            if field == 'end_date':
+                time = re.sub(r'\d{4}-(\d{2})-(\d{2}) \d{2}:\d{2}', r'\2.\1', date)
+            else:
+                time = date.split()[-1][:-3]
+            text = time + ' ' + text
         if len(text) > 30:
             text = text[:31] + '…'
         kb.append([btn(text, f"view_{task['id']}")])
@@ -38,40 +43,39 @@ def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int) -> 
         additional = True
     elif len(tasks) > config.entries_on_page:
         kb.append(get_pagination_kb(callback, page, len(tasks), config.entries_on_page))
-        # kb.insert(-1, )
     return kb, additional
+
+
+def get_navigation(date: datetime, days_delta: int, callback: str) -> list[InlineKeyboardButton]:
+    row = []
+    delta = timedelta(days=days_delta)
+    for btn_text in ['◀️ Назад', '▶️ Далее']:
+        date_result = date - delta if '◀️' in btn_text else date + delta
+        db_format = date_result.strftime('%Y-%m-%d')
+        row.append(btn(btn_text, f'{callback}_{db_format}'))
+    return row
 
 
 def get_page(date_str: str, user_id: int, page: int) -> tuple[str, InlineKeyboardMarkup]:
     query = f'''
-    select * from tasks
-    where notification_date like '{date_str}%' and end_date is NULL and end_date is NULL and user_id = ?
-    order by
-        case when notification_date not like '%:%' THEN 1 ELSE 0 END,
-        notification_date
+        select * from tasks
+        where notification_date like '{date_str}%' and end_date is NULL and user_id = ?
+        order by
+            case when notification_date not like '%:%' THEN 1 ELSE 0 END,
+            notification_date,
+            creation_date desc
     '''
-    print(query)
     tasks = db.execute_query(query, user_id)
-    kb, additional = generate_tasks_kb(date_str, tasks, page)
+    kb, additional = generate_tasks_kb(date_str, tasks, page, 'notification_date')
     date = datetime.strptime(date_str, '%Y-%m-%d')
     natural_day = format_date(date)
+    text = texts.get('tasks').format(natural_day)
     if 'сегодня' in natural_day:
-        text = texts.get('today_tasks').format(natural_day)
+        text = texts.get('today_emoji') + text[2:]
         tomorrow = to_db_str(get_tomorrow()).split()[0]
         kb.append([btn('Задачи на завтра ▶\uFE0F', f'list_{tomorrow}')])
     else:
-        text = texts.get('tasks').format(natural_day)
-        row = []
-        for symb in ['◀️', '▶️']:
-            is_prev = symb == '◀️'
-            delta = timedelta(days=1)
-            date_result = date - delta if is_prev else date + delta
-            user_format = date_result.strftime('%d.%m')
-            db_format = date_result.strftime('%Y-%m-%d')
-            btn_text = f'{symb} {user_format}' if is_prev else f'{user_format} {symb}'
-            row.append(btn(btn_text, f'list_{db_format}'))
-        kb.append(row)
-
+        kb.append(get_navigation(date, 1, 'list'))
     if additional:
         text += '\n\n' + texts.get('no_tasks')
     return text, markup(kb)
@@ -93,11 +97,13 @@ async def view_task(callback: CallbackQuery):
     task_id = get_id(callback)
     task = db.execute_query('select * from tasks where id = ? order by notification_date', task_id)[0]
     text = f'{task['text']}\n\n🕓 Создано: {reformat_db_str(task['creation_date'])}'
-    back = 'list'
     if task['end_date']:
         text += f'\n✅ Выполнено: {reformat_db_str(task['end_date'])}'
-        back = 'completed'
-    kb = config.edit_keyboard(task_id, 'view')
+        back = kb_key = 'completed'
+    else:
+        back = 'list'
+        kb_key = 'view'
+    kb = config.edit_keyboard(task_id, kb_key)
     date_info = task['notification_date'].split()[0]
     kb.inline_keyboard.append([btn('◀️ Назад', f'{back}_{date_info}')])
     await callback.message.edit_text(text=text, reply_markup=kb)
@@ -125,24 +131,14 @@ async def null_cb(callback: CallbackQuery):
 def get_completed_tasks(date: datetime, user_id: int) -> tuple[str, InlineKeyboardMarkup]:
     mon, sun = get_week(date)
     query = f'''
-            select * from tasks
-            where notification_date between '{mon.strftime('%Y-%m-%d')}' and '{sun.strftime('%Y-%m-%d')}' and end_date is not NULL and user_id = ?
-            order by end_date desc
-        '''
+        select * from tasks
+        where end_date is not NULL and end_date between '{mon.strftime('%Y-%m-%d')}' and '{sun.strftime('%Y-%m-%d')}' and user_id = ?
+        order by end_date
+    '''
     tasks = db.execute_query(query, user_id)
     date_str = to_db_str(now_date()).split()[0]
-    kb, additional = generate_tasks_kb(date_str + '_week', tasks, 1)
-    row = []
-    for symb in ['◀️', '▶️']:
-        delta = timedelta(days=7)
-        is_prev = symb == '◀️'
-        date_result = mon - delta if is_prev else mon + delta
-        result_mon, result_sun = get_week(date_result)
-        user_format = f'{result_mon.strftime('%d.%m')}-{result_sun.strftime('%d.%m')}'
-        db_format = date_result.strftime('%Y-%m-%d')
-        btn_text = f'{symb} {user_format}' if is_prev else f'{user_format} {symb}'
-        row.append(btn(btn_text, f'completed_{db_format}'))
-    kb.append(row)
+    kb, additional = generate_tasks_kb(date_str + '_week', tasks, 1, 'end_date')
+    kb.append(get_navigation(mon, 7, 'completed'))
     text = texts.get('completed_tasks').format(get_weekday(mon).split(',')[0], get_weekday(sun).split(',')[0])
     if additional:
         text += '\n\n' + texts.get('no_completed_tasks')

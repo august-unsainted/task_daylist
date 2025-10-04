@@ -5,7 +5,7 @@ import locale
 
 from humanize import naturalday
 
-locale.setlocale(locale.LC_ALL, 'ru_RU')
+locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 TIME_REG = r'(?:[0-1]?[0-9]|2[0-3]):[0-5][0-9]'
 DATE_REG = r'(?:0?[1-9]|[1-2]?[0-9]|3[0-1])\.(?:0?[1-9]|1[0-2])(\.\d{2})?'
 TASK_REG = rf'(.*?) *(?:\[({DATE_REG}|сегодня|завтра|послезавтра)?,? *(?:({TIME_REG}))? *\]) *(.*)'

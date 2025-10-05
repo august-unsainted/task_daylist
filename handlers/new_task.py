@@ -8,8 +8,9 @@ from aiogram.fsm.context import FSMContext
 
 from bot_config import *
 from handlers.view_tasks import get_id
+from utils.keyboards import get_back_kb, markup, btn
 from utils.schedule import schedule_task, delete_schedule
-from utils.time import now, convert_to_date, to_str, get_tomorrow, now_date, to_date, TASK_REG, format_date
+from utils.time import now, to_str, get_tomorrow, now_date, to_date, TASK_REG, format_date
 
 router = Router()
 
@@ -44,7 +45,9 @@ def get_add_args(text: str, _id: int, query: str) -> dict:
     has_time = '0:0' in str(time) or date.hour or date.minute
     if has_time:
         date_format += ' %H:%M:00'
-    task_id = db.execute_query(query, task, now(), date.strftime(date_format), _id)
+    date_info = date.strftime(date_format)
+    task_id = db.execute_query(query, task, now(), date_info, _id)
+    task_id = task_id or _id
     if has_time:
         schedule_task(task_id, date)
         answer_text += '\n\n' + texts.get('notification_time').format(date.strftime('%H:%M'))
@@ -55,14 +58,16 @@ def get_add_args(text: str, _id: int, query: str) -> dict:
 @router.callback_query(F.data.startswith('delete'))
 async def delete_task(callback: CallbackQuery):
     task_id = get_id(callback)
-    db.execute_query('delete from tasks where id = ?', task_id)
+    task = db.execute_query('delete from tasks where id = ? returning *', task_id)[0]
     delete_schedule(task_id)
-    await callback.message.edit_text(texts.get('delete'), reply_markup=kbs.get('okay'))
+    button = btn('Понятно 👍', f'list_{task['notification_date']}')
+    await callback.message.edit_text(texts.get('delete'), reply_markup=markup([[button]]))
 
 
 @router.callback_query(F.data.startswith('edit'))
 async def set_edit_task(callback: CallbackQuery, state: FSMContext):
-    await callback.message.edit_text('Введите текст')
+    task_text = '\n\n'.join(callback.message.text.split('\n\n')[:-1])
+    await callback.message.edit_text(config.texts.get('edit').format(task_text), parse_mode='HTML')
     await state.update_data(message=callback.message.message_id, task=get_id(callback))
     await state.set_state(EditStates.text)
 
@@ -93,12 +98,12 @@ async def add_task(message: Message):
 @router.callback_query(F.data.startswith('done'))
 async def done_task(callback: CallbackQuery):
     task_id = get_id(callback)
-    db.execute_query('update tasks set end_date = ? where id = ?', now(), task_id)
+    task = db.execute_query('update tasks set end_date = ? where id = ? returning *', now(), task_id)[0]
     mess_text = callback.message.text
     mess_text += '\n' if '🕓 Создано:' in mess_text else '\n\n'
-    text = f'{mess_text}✅ Выполнено: {to_str()}'
-    kb = config.edit_keyboard(task_id, 'view_checked')
-    await callback.message.edit_text(text=text, reply_markup=kb)
+    text = f'{mess_text}✅ Выполнено: {format_date(now_date())}'
+    delete_schedule(task_id)
+    await callback.message.edit_text(text=text, reply_markup=get_back_kb(task))
 
 
 @router.callback_query(F.data.startswith('move'))
@@ -114,7 +119,8 @@ async def move_task(callback: CallbackQuery):
     db.execute_query(query, new_date_str, task_id)
     date, time = new_date_str.split(' ')
     answer_text = texts.get('move').format(date, time, task['text'])
-    kb = config.edit_keyboard(task_id, 'view_checked')
+    kb = config.edit_keyboard(task_id, 'completed')
+    schedule_task(task_id, new_date)
     await callback.message.edit_text(text=answer_text, parse_mode='HTML', reply_markup=kb)
 
 
@@ -123,5 +129,4 @@ async def delete_message(callback: CallbackQuery):
     try:
         await callback.message.delete()
     except TelegramBadRequest:
-        print('чет не удаляется')
         pass

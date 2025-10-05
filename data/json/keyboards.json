@@ -8,18 +8,16 @@
   },
   "view": {
     "move": "Перенести на завтра \uD83D\uDCC6",
+    "edit": "Изменить ✏",
     "": {
       "delete": "Удалить \uD83D\uDDD1",
       "done": "Готово ✅"
     }
   },
   "completed": {
-    "": {
-      "delete": "Удалить \uD83D\uDDD1",
-      "message_delete": "Понятно \uD83D\uDC4D"
-    }
+      "delete": "Удалить \uD83D\uDDD1"
   },
-  "okay": {
-    "message_delete": "Понятно \uD83D\uDC4D"
+  "cancel": {
+    "cancel": "❌ Отменить"
   }
 }

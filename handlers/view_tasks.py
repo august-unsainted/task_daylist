@@ -5,11 +5,10 @@ import humanize
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
-from humanize import naturalday
 
 from bot_config import *
-from utils.keyboards import get_pagination_kb, btn, markup
-from utils.time import now_date, get_weekday, to_str, to_db_str, reformat_db_str, get_tomorrow, get_week, format_date
+from utils.keyboards import get_pagination_kb, btn, markup, get_back_kb
+from utils.time import now_date, get_weekday, to_db_str, reformat_db_str, get_tomorrow, get_week, format_date
 
 _t = humanize.i18n.activate("ru_RU")
 
@@ -20,8 +19,9 @@ def get_id(callback: CallbackQuery) -> str:
     return callback.data.split('_')[-1]
 
 
-def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int, field: str) -> tuple[list[list[InlineKeyboardButton]], bool]:
+def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int | str, field: str) -> tuple[list[list[InlineKeyboardButton]], bool]:
     kb = []
+    page = int(page)
     i = page - 1
     start = i * config.entries_on_page
     end = start + config.entries_on_page
@@ -34,8 +34,8 @@ def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int, fie
             else:
                 time = date.split()[-1][:-3]
             text = time + ' ' + text
-        if len(text) > 30:
-            text = text[:31] + '…'
+        if len(text) > 40:
+            text = text[:41].strip() + '…'
         kb.append([btn(text, f"view_{task['id']}")])
 
     additional = False
@@ -56,7 +56,7 @@ def get_navigation(date: datetime, days_delta: int, callback: str) -> list[Inlin
     return row
 
 
-def get_page(date_str: str, user_id: int, page: int) -> tuple[str, InlineKeyboardMarkup]:
+def get_page(date_str: str, user_id: int, page: int | str) -> tuple[str, InlineKeyboardMarkup]:
     query = f'''
         select * from tasks
         where notification_date like '{date_str}%' and end_date is NULL and user_id = ?
@@ -90,6 +90,7 @@ async def get_today_tasks(user_id: int):
 async def view_tasks(message: Message):
     text, kb = await get_today_tasks(message.from_user.id)
     await message.answer(text=text, reply_markup=kb, parse_mode='HTML')
+    await message.delete()
 
 
 @router.callback_query(F.data.startswith('view'))
@@ -99,14 +100,7 @@ async def view_task(callback: CallbackQuery):
     text = f'{task['text']}\n\n🕓 Создано: {reformat_db_str(task['creation_date'])}'
     if task['end_date']:
         text += f'\n✅ Выполнено: {reformat_db_str(task['end_date'])}'
-        back = kb_key = 'completed'
-    else:
-        back = 'list'
-        kb_key = 'view'
-    kb = config.edit_keyboard(task_id, kb_key)
-    date_info = task['notification_date'].split()[0]
-    kb.inline_keyboard.append([btn('◀️ Назад', f'{back}_{date_info}')])
-    await callback.message.edit_text(text=text, reply_markup=kb)
+    await callback.message.edit_text(text=text, reply_markup=get_back_kb(task))
 
 
 @router.callback_query(F.data.startswith('list'))
@@ -118,8 +112,11 @@ async def view_tasks_list(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('page'))
 async def view_tasks_list(callback: CallbackQuery):
-    page, date_str = callback.data.split('_')[1:]
-    text, kb = get_page(date_str, callback.from_user.id, int(page))
+    page, date_str = callback.data.split('_')[1:3]
+    if callback.data.endswith('week'):
+        text, kb = get_completed_tasks(date_str, callback.from_user.id, page)
+    else:
+        text, kb = get_page(date_str, callback.from_user.id, page)
     await callback.message.edit_text(text, reply_markup=kb, parse_mode='HTML')
 
 
@@ -128,8 +125,11 @@ async def null_cb(callback: CallbackQuery):
     await callback.answer('😢 Нет значений!')
 
 
-def get_completed_tasks(date: datetime, user_id: int) -> tuple[str, InlineKeyboardMarkup]:
+def get_completed_tasks(date: datetime | str, user_id: int, page: int | str) -> tuple[str, InlineKeyboardMarkup]:
+    if isinstance(date, str):
+        date = datetime.strptime(date, '%Y-%m-%d')
     mon, sun = get_week(date)
+    sun = sun + timedelta(days=1)
     query = f'''
         select * from tasks
         where end_date is not NULL and end_date between '{mon.strftime('%Y-%m-%d')}' and '{sun.strftime('%Y-%m-%d')}' and user_id = ?
@@ -137,7 +137,7 @@ def get_completed_tasks(date: datetime, user_id: int) -> tuple[str, InlineKeyboa
     '''
     tasks = db.execute_query(query, user_id)
     date_str = to_db_str(now_date()).split()[0]
-    kb, additional = generate_tasks_kb(date_str + '_week', tasks, 1, 'end_date')
+    kb, additional = generate_tasks_kb(date_str + '_week', tasks, page, 'end_date')
     kb.append(get_navigation(mon, 7, 'completed'))
     text = texts.get('completed_tasks').format(get_weekday(mon).split(',')[0], get_weekday(sun).split(',')[0])
     if additional:
@@ -147,12 +147,12 @@ def get_completed_tasks(date: datetime, user_id: int) -> tuple[str, InlineKeyboa
 
 @router.message(Command('completed'))
 async def view_completed_tasks(message: Message):
-    text, kb = get_completed_tasks(now_date(), message.from_user.id)
+    text, kb = get_completed_tasks(now_date(), message.from_user.id, 1)
     await message.answer(text=text, parse_mode='HTML', reply_markup=kb)
+    await message.delete()
 
 
 @router.callback_query(F.data.startswith('completed'))
 async def view_completed(callback: CallbackQuery):
-    date = datetime.strptime(get_id(callback), '%Y-%m-%d')
-    text, kb = get_completed_tasks(date, callback.from_user.id)
+    text, kb = get_completed_tasks(get_id(callback), callback.from_user.id, 1)
     await callback.message.edit_text(text=text, parse_mode='HTML', reply_markup=kb)

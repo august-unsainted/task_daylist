@@ -40,7 +40,7 @@ async def send_today(user_id: int):
     await send_mess(user_id, text, kb)
 
 
-def schedule_task(task_id: int, date: datetime) -> None:
+def schedule_task(task_id: int | str, date: datetime) -> None:
     scheduler.add_job(send_task, 'date', run_date=date, id=str(task_id), args=[task_id],
                       replace_existing=True, misfire_grace_time=100)
 
@@ -54,5 +54,4 @@ def delete_schedule(task_id: int | str):
     try:
         scheduler.remove_job(str(task_id))
     except JobLookupError:
-        print(f'чета нет такого задания: {task_id}')
         pass

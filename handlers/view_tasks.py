@@ -8,7 +8,7 @@ from aiogram.filters import Command
 
 from bot_config import *
 from utils.keyboards import get_pagination_kb, btn, markup, get_back_kb
-from utils.time import now_date, get_weekday, to_db_str, reformat_db_str, get_tomorrow, get_week, format_date
+from utils.time import now_date, get_weekday, to_db_str, reformat_db_str, get_tomorrow, get_week, format_date, now
 
 _t = humanize.i18n.activate("ru_RU")
 
@@ -71,11 +71,12 @@ def get_page(date_str: str, user_id: int, page: int | str) -> tuple[str, InlineK
     natural_day = format_date(date)
     text = texts.get('tasks').format(natural_day)
     if 'сегодня' in natural_day:
-        text = texts.get('today_emoji') + text[2:]
+        text = texts.get('today_emoji') + text[1:]
         tomorrow = to_db_str(get_tomorrow()).split()[0]
         kb.append([btn('Задачи на завтра ▶\uFE0F', f'list_{tomorrow}')])
     else:
         kb.append(get_navigation(date, 1, 'list'))
+    kb.append([btn('✅ Выполненные задачи', 'completed')])
     if additional:
         text += '\n\n' + texts.get('no_tasks')
     return text, markup(kb)
@@ -105,7 +106,7 @@ async def view_task(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('list'))
 async def view_tasks_list(callback: CallbackQuery):
-    date_str = get_id(callback)
+    date_str = get_id(callback) if '_' in callback.data else now().split()[0]
     text, kb = get_page(date_str, callback.from_user.id, 1)
     await callback.message.edit_text(text, reply_markup=kb, parse_mode='HTML')
 
@@ -139,6 +140,7 @@ def get_completed_tasks(date: datetime | str, user_id: int, page: int | str) -> 
     date_str = to_db_str(date).split()[0]
     kb, additional = generate_tasks_kb(date_str + '_week', tasks, page, 'end_date')
     kb.append(get_navigation(mon, 7, 'completed'))
+    kb.append([btn('📌 Задачи на сегодня', 'list')])
     text = texts.get('completed_tasks').format(get_weekday(mon).split(',')[0], get_weekday(sun).split(',')[0])
     if additional:
         text += '\n\n' + texts.get('no_completed_tasks')
@@ -154,5 +156,6 @@ async def view_completed_tasks(message: Message):
 
 @router.callback_query(F.data.startswith('completed'))
 async def view_completed(callback: CallbackQuery):
-    text, kb = get_completed_tasks(get_id(callback), callback.from_user.id, 1)
+    date_str = get_id(callback) if '_' in callback.data else now().split()[0]
+    text, kb = get_completed_tasks(date_str, callback.from_user.id, 1)
     await callback.message.edit_text(text=text, parse_mode='HTML', reply_markup=kb)

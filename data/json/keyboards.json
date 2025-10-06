@@ -19,5 +19,8 @@
   },
   "cancel": {
     "cancel": "❌ Отменить"
+  },
+  "okay": {
+    "message_delete": "Понятно \uD83D\uDC4D"
   }
 }

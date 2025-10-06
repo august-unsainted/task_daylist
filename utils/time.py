@@ -41,7 +41,19 @@ def to_db_str(date: datetime = None) -> str:
     return date.strftime('%Y-%m-%d %H:%M:00')
 
 
-def reformat_db_str(date_str: str = None) -> str:
+def from_db_str(date_str: str):
+    date_format = '%Y-%m-%d'
+    has_time = ':' in date_str
+    if has_time:
+        date_format += ' %H:%M'
+    date = datetime.strptime(date_str, date_format)
+    result = to_str(date)
+    if not has_time:
+        result = result.split()[0]
+    return result
+
+
+def reformat_db_str(date_str: str) -> str:
     date = datetime.strptime(date_str, '%Y-%m-%d %H:%M')
     return format_date(date) + ' в ' + date.strftime('%H:%M')
 

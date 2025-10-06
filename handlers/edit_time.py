@@ -37,7 +37,7 @@ async def set_time(message: Message, state: FSMContext):
         answer = texts.get('error').format('ЧЧ:ММ', text)
         await state.set_state(TimeStates.time)
     await message.bot.edit_message_text(chat_id=message.from_user.id, message_id=data['message'],
-                                        text=answer, parse_mode='HTML')
+                                        text=answer, parse_mode='HTML', reply_markup=config.keyboards.get('okay'))
 
 
 @router.callback_query(F.data == 'cancel')

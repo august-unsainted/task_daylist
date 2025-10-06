@@ -10,7 +10,7 @@ from bot_config import *
 from handlers.view_tasks import get_id
 from utils.keyboards import get_back_kb, markup, btn
 from utils.schedule import schedule_task, delete_schedule
-from utils.time import now, to_str, get_tomorrow, now_date, to_date, TASK_REG, format_date
+from utils.time import now, to_str, get_tomorrow, now_date, to_date, TASK_REG, format_date, reformat_db_str, from_db_str
 
 router = Router()
 
@@ -66,9 +66,13 @@ async def delete_task(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('edit'))
 async def set_edit_task(callback: CallbackQuery, state: FSMContext):
-    task_texts = [p for p in callback.message.text.split('\n\n') if not p.startswith(('💠', '🕓'))]
-    await callback.message.edit_text(config.texts.get('edit').format('\n\n'.join(task_texts)), parse_mode='HTML')
-    await state.update_data(message=callback.message.message_id, task=get_id(callback))
+    task_id = get_id(callback)
+    task = db.execute_query('select text, notification_date from tasks where id = ?', task_id)[0]
+    date = from_db_str(task['notification_date'])
+    text = f"{task['text']} [{date}]"
+    await callback.message.edit_text(config.texts.get('edit').format(text), parse_mode='HTML',
+                                     reply_markup=config.keyboards.get('cancel'))
+    await state.update_data(message=callback.message.message_id, task=task_id)
     await state.set_state(EditStates.text)
 
 

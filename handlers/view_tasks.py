@@ -136,7 +136,7 @@ def get_completed_tasks(date: datetime | str, user_id: int, page: int | str) -> 
         order by end_date
     '''
     tasks = db.execute_query(query, user_id)
-    date_str = to_db_str(now_date()).split()[0]
+    date_str = to_db_str(date).split()[0]
     kb, additional = generate_tasks_kb(date_str + '_week', tasks, page, 'end_date')
     kb.append(get_navigation(mon, 7, 'completed'))
     text = texts.get('completed_tasks').format(get_weekday(mon).split(',')[0], get_weekday(sun).split(',')[0])

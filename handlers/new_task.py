@@ -66,8 +66,8 @@ async def delete_task(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('edit'))
 async def set_edit_task(callback: CallbackQuery, state: FSMContext):
-    task_text = '\n\n'.join(callback.message.text.split('\n\n')[:-1])
-    await callback.message.edit_text(config.texts.get('edit').format(task_text), parse_mode='HTML')
+    task_texts = [p for p in callback.message.text.split('\n\n') if not p.startswith(('💠', '🕓'))]
+    await callback.message.edit_text(config.texts.get('edit').format('\n\n'.join(task_texts)), parse_mode='HTML')
     await state.update_data(message=callback.message.message_id, task=get_id(callback))
     await state.set_state(EditStates.text)
 

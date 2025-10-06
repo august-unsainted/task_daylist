@@ -122,7 +122,8 @@ async def move_task(callback: CallbackQuery):
     new_date_str = to_str(new_date, False)
     db.execute_query(query, new_date_str, task_id)
     date, time = new_date_str.split(' ')
-    answer_text = texts.get('move').format(date, time, task['text'])
+    full_date = f'{date} ({time})' if time != '00:00' else date
+    answer_text = texts.get('move').format(full_date, task['text'])
     kb = config.edit_keyboard(task_id, 'completed')
     schedule_task(task_id, new_date)
     await callback.message.edit_text(text=answer_text, parse_mode='HTML', reply_markup=kb)

@@ -9,6 +9,7 @@ locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 TIME_REG = r'(?:[0-1]?[0-9]|2[0-3]):[0-5][0-9]'
 DATE_REG = r'(?:0?[1-9]|[1-2]?[0-9]|3[0-1])\.(?:0?[1-9]|1[0-2])(\.\d{2})?'
 TASK_REG = rf'(.*?) *(?:\[({DATE_REG}|сегодня|завтра|послезавтра)?,? *(?:({TIME_REG}))? *\]) *(.*)'
+print(TASK_REG)
 
 
 def now_date() -> datetime:
@@ -112,13 +113,12 @@ def convert_to_date(date_time_str: str) -> datetime:
 
 def get_tomorrow(date: str = None) -> datetime:
     tomorrow = now_date() + timedelta(days=1)
-    if date and ' ' in date:
-        time = datetime.strptime(date.split()[-1], '%H:%M').time()
+    if date and ':' in date:
+        time = datetime.strptime(date.split()[-1], '%H:%M:%S').time()
         # date_str = date.strftime('%Y-%m-%d')
-        hour, minute = time.hour, time.minute
+        tomorrow = tomorrow.replace(hour=time.hour, minute=time.minute)
     else:
-        hour, minute = 0, 0
-    tomorrow = tomorrow.replace(hour=hour, minute=minute)
+        tomorrow = reset_time(tomorrow)
     return tomorrow
 
 

@@ -9,8 +9,8 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 from bot_config import db, config
 from config import TOKEN
-from handlers.view_tasks import get_today_tasks
-from utils.time import now_date, reset_time, to_db_str
+from handlers.view_tasks import get_list
+from utils.time import now_date, reset_time, to_db_str, today
 
 db_path = Path().cwd() / 'data/bot.db'
 jobstores = {'default': SQLAlchemyJobStore(url=f'sqlite:///{db_path}')}
@@ -43,7 +43,7 @@ async def send_today(user_id: int):
     where notification_date like '{yesterday_str}%' and user_id = ? and end_date is NULL
     '''
     db.execute_query(query, user_id)
-    text, kb = await get_today_tasks(user_id)
+    text, kb = get_list(today(), user_id, 1)
     await send_mess(user_id, text, kb)
 
 

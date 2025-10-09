@@ -20,6 +20,10 @@ def now() -> str:
     return now_date().strftime('%Y-%m-%d %H:%M')
 
 
+def today() -> str:
+    return now().split()[0]
+
+
 def pad(text: str, sep: str) -> str:
     items = []
     for item in text.split(sep):
@@ -29,6 +33,17 @@ def pad(text: str, sep: str) -> str:
 
 def reset_time(date: datetime) -> datetime:
     return date.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def delta(date: datetime, days: int = 1, minus: bool = False):
+    days = timedelta(days=days)
+    if minus:
+        return date - days
+    return date + days
+
+
+def fmt(date: datetime):
+    date.strftime('%Y-%m-%d')
 
 
 def to_str(date: datetime = None, add_excuse: bool = True) -> str:
@@ -135,11 +150,3 @@ def format_date(date: datetime) -> str:
     if natural_day == date.strftime('%b %d'):
         return re.sub(r', (\w+)', r' (\1)', weekday)
     return f'{natural_day} ({weekday})'
-
-
-def get_week(date: datetime) -> tuple[datetime, datetime]:
-    days_since_monday = date.weekday()
-    days_before_sunday = 6 - date.weekday()
-    monday = date - timedelta(days=days_since_monday)
-    sunday = date + timedelta(days=days_before_sunday)
-    return monday, sunday

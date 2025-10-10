@@ -9,7 +9,6 @@ locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 TIME_REG = r'(?:[0-1]?[0-9]|2[0-3]):[0-5][0-9]'
 DATE_REG = r'(?:0?[1-9]|[1-2]?[0-9]|3[0-1])\.(?:0?[1-9]|1[0-2])(\.\d{2})?'
 TASK_REG = rf'(.*?) *(?:\[({DATE_REG}|сегодня|завтра|послезавтра)?,? *(?:({TIME_REG}))? *\]) *(.*)'
-print(TASK_REG)
 
 
 def now_date() -> datetime:
@@ -43,7 +42,7 @@ def delta(date: datetime, days: int = 1, minus: bool = False):
 
 
 def fmt(date: datetime):
-    date.strftime('%Y-%m-%d')
+    return date.strftime('%Y-%m-%d')
 
 
 def to_str(date: datetime = None, add_excuse: bool = True) -> str:

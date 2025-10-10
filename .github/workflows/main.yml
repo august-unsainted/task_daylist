@@ -21,6 +21,8 @@ jobs:
           git pull origin master
           git status
           systemctl stop task_daylist
+          systemctl stop applicant_bsu
           systemctl daemon-reload
           systemctl enable task_daylist
           systemctl start task_daylist
+          systemctl start applicant_bsu

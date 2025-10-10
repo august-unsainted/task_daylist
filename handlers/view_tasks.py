@@ -32,11 +32,11 @@ def generate_tasks_kb(callback: str, tasks: list[dict[str, str]], page: int | st
     end = start + config.entries_on_page
     page_tasks = tasks[start:end]
     for task in page_tasks:
-        text, date = task['text'], task.get('end_date') or task.get('notification_date')
+        text, date = task['text'], task['end_date'] or task['notification_date']
         if ':' in date:
             text = format_func(date) + ' ' + text
-        if len(text) > 40:
-            text = text[:41].strip() + '…'
+        if len(text) > config.btn_length:
+            text = text[:config.btn_length + 1].strip() + '…'
         kb.append([btn(text, f"view_{task['id']}")])
 
     additional = False
@@ -59,7 +59,7 @@ def get_completed(date_str: str, user_id: int, page: int | str) -> tuple[str, In
     date = datetime.strptime(date_str, '%Y-%m-%d')
     mon = delta(date, date.weekday(), True)
     sun = delta(date, 6 - date.weekday())
-    next_mon = delta(mon, 1)
+    next_mon = delta(sun, 1)
     query = '''
         select * from tasks
         where end_date is not NULL and end_date between ? and ? and user_id = ?
@@ -70,7 +70,7 @@ def get_completed(date_str: str, user_id: int, page: int | str) -> tuple[str, In
     kb, additional = generate_tasks_kb(fmt(mon) + '_week', tasks, page,
                                        lambda input_date: re.sub(reg, r'\2.\1', input_date))
     kb.append(get_navigation(date, 7, 'completed'))
-    kb.append(config.keyboards.get('switch_tasks').inline_keyboard[1])
+    kb.append(config.keyboards.get('switch_tasks').inline_keyboard[0])
     text = texts.get('completed_tasks').format(get_weekday(mon).split(',')[0], get_weekday(sun).split(',')[0])
     if additional:
         text += '\n\n' + texts.get(f'no_completed_tasks')
@@ -97,7 +97,7 @@ def get_list(date_str: str, user_id: int, page: int | str) -> tuple[str, InlineK
         kb.append([btn('Задачи на завтра ▶\uFE0F', f'list_{tomorrow}')])
     else:
         kb.append(get_navigation(date, 1, 'list'))
-    kb.append(config.keyboards.get('switch_tasks').inline_keyboard[0])
+    kb.append(config.keyboards.get('switch_tasks').inline_keyboard[1])
     if additional:
         text += '\n\n' + texts.get(f'no_tasks')
     return text, markup(kb)
@@ -105,7 +105,7 @@ def get_list(date_str: str, user_id: int, page: int | str) -> tuple[str, InlineK
 
 @router.message(Command('list', 'completed'))
 async def view_tasks(message: Message):
-    func = get_func('/list' in message)
+    func = get_func(message.text.startswith('/list'))
     text, kb = func(today(), message.from_user.id, 1)
     await message.answer(text=text, reply_markup=kb, parse_mode='HTML')
     await message.delete()

@@ -10,7 +10,7 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from bot_config import db, config
 from config import TOKEN
 from handlers.view_tasks import get_list
-from utils.time import now_date, reset_time, to_db_str, today
+from utils.time import today
 
 db_path = Path().cwd() / 'data/bot.db'
 jobstores = {'default': SQLAlchemyJobStore(url=f'sqlite:///{db_path}')}
@@ -32,18 +32,19 @@ async def send_task(task_id: int):
 
 
 async def send_today(user_id: int):
-    yesterday = reset_time(now_date() - timedelta(days=1))
-    yesterday_str = to_db_str(yesterday).split()[0]
     query = f'''
-    UPDATE tasks SET notification_date = 
-    (select case
-    when notification_date like '%:%' then datetime(notification_date, '+1 day')
-    else date(notification_date, '+1 day')
-    end as formatted_date) 
-    where notification_date like '{yesterday_str}%' and user_id = ? and end_date is NULL
+        UPDATE tasks SET notification_date = 
+        (select case
+        when notification_date like '%:%' then 
+            strftime('%Y-%m-%d', 'now') || ' ' || strftime('%H:%M:%S', notification_date)
+        else
+            strftime('%Y-%m-%d', 'now')
+        end as formatted_date) 
+        where notification_date < ? and user_id = ? and end_date is NULL
     '''
-    db.execute_query(query, user_id)
-    text, kb = get_list(today(), user_id, 1)
+    today_str = today()
+    db.execute_query(query, today_str, user_id)
+    text, kb = get_list(today_str, user_id, 1)
     await send_mess(user_id, text, kb)
 
 

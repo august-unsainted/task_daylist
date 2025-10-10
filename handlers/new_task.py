@@ -10,7 +10,7 @@ from bot_config import *
 from handlers.view_tasks import get_id
 from utils.keyboards import get_back_kb, markup, btn
 from utils.schedule import schedule_task, delete_schedule
-from utils.time import now, to_str, get_tomorrow, now_date, to_date, TASK_REG, format_date, reformat_db_str, from_db_str
+from utils.time import now, to_str, get_tomorrow, now_date, to_date, TASK_REG, format_date, from_db_str
 
 router = Router()
 

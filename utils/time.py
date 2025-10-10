@@ -1,4 +1,5 @@
 import re
+import calendar
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 import locale
@@ -6,9 +7,11 @@ import locale
 from humanize import naturalday
 
 locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
+abbrs, names = [abbr.lower() for abbr in list(calendar.day_abbr)], list(calendar.day_name)
+
 TIME_REG = r'(?:[0-1]?[0-9]|2[0-3]):[0-5][0-9]'
 DATE_REG = r'(?:0?[1-9]|[1-2]?[0-9]|3[0-1])\.(?:0?[1-9]|1[0-2])(\.\d{2})?'
-TASK_REG = rf'(.*?) *(?:\[({DATE_REG}|сегодня|завтра|послезавтра)?,? *(?:({TIME_REG}))? *\]) *(.*)'
+TASK_REG = rf'(.*?) *(?:\[({DATE_REG}|сегодня|завтра|послезавтра|{'|'.join(names)}|{'|'.join(abbrs)})?,? *(?:({TIME_REG}))? *\]) *(.*)'
 
 
 def now_date() -> datetime:
@@ -150,3 +153,18 @@ def format_date(date: datetime) -> str:
     if natural_day == date.strftime('%b %d'):
         return re.sub(r', (\w+)', r' (\1)', weekday)
     return f'{natural_day} ({weekday})'
+
+
+def parse_weekday(weekday: str) -> datetime | None:
+    weekday = weekday.lower()
+    if weekday in names:
+        day_num = names.index(weekday)
+    elif weekday in abbrs:
+        day_num = abbrs.index(weekday)
+    else:
+        return None
+    date = now_date()
+    days = day_num - date.weekday()
+    if date.weekday() >= day_num:
+        days += 7
+    return delta(date, days)

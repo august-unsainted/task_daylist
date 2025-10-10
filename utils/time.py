@@ -96,18 +96,19 @@ def find_year(date: str, has_time: bool = True) -> datetime | None:
     return full_date
 
 
-def to_date(date: str | None, time: str | None) -> datetime | None:
+def to_date(date: str | None, time: str | None) -> datetime | str | None:
     if date:
         date = pad(date, '.')
     if time:
         time = pad(time, ':')
     try:
-        if date and time:
-            return find_year(f'{date} {time}')
-        elif time:
+        if not date:
             return get_tomorrow(f'_ {time}')
-        else:
-            return find_year(date, False)
+        args = [f'{date} {time}'] if time else [date, False]
+        date = find_year(*args)
+        if date:
+            return date
+        return 'past'
     except ValueError:
         return None
 

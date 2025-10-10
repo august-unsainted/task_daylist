@@ -1,5 +1,5 @@
 import re
-from datetime import timedelta
+from datetime import timedelta, datetime
 from aiogram import Router, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.state import State, StatesGroup
@@ -38,8 +38,9 @@ def get_add_args(text: str, _id: int, query: str) -> dict:
                 date = get_tomorrow()
             date = date.strftime('%d.%m')
         date = to_date(date, time)
-    if not date:
-        return {'text': texts.get('error').format('текст [ДД.ММ ЧЧ:ММ]', text), 'parse_mode': 'HTML'}
+    if not isinstance(date, datetime):
+        error_text = 'Дата в прошлом' if date else 'Правильный формат: текст [ДД.ММ ЧЧ:ММ]'
+        return {'text': texts.get('error').format(error_text, text), 'parse_mode': 'HTML'}
     answer_text = texts.get('new').format(format_date(date), task)
     date_format = '%Y-%m-%d'
     has_time = '0:0' in str(time) or date.hour or date.minute

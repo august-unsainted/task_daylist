@@ -24,7 +24,7 @@
     "message_delete": "Понятно \uD83D\uDC4D"
   },
   "switch_tasks": {
-    "list": "\uD83D\uDCCC Задачи на сегодня",
+    "list": "\uD83D\uDCC6 Текущие задачи",
     "completed": "✅ Выполненные задачи"
   }
 }

@@ -50,12 +50,12 @@ async def send_today(user_id: int):
 
 def schedule_task(task_id: int | str, date: datetime) -> None:
     scheduler.add_job(send_task, 'date', run_date=date, id=str(task_id), args=[task_id],
-                      replace_existing=True, misfire_grace_time=100)
+                      replace_existing=True)
 
 
 async def schedule_regular(user_id: int, time: str) -> None:
     scheduler.add_job(send_today, 'cron', hour=time[:2], minute=time[3:], id=str(user_id),
-                      args=[user_id], replace_existing=True, misfire_grace_time=100)
+                      args=[user_id], replace_existing=True)
 
 
 def delete_schedule(task_id: int | str):

@@ -121,14 +121,13 @@ async def move_task(callback: CallbackQuery):
         return
     task = tasks[0]
     query = 'update tasks set notification_date = ? where id = ?'
-    new_date = get_tomorrow(task['notification_date'])
-    new_date_str = to_str(new_date, False)
-    db.execute_query(query, new_date_str, task_id)
-    date, time = new_date_str.split(' ')
-    full_date = f'{date} ({time})' if time != '00:00' else date
-    answer_text = texts.get('move').format(full_date, task['text'])
+    tomorrow = get_tomorrow(task['notification_date'])
+    tomorrow_str = f'{tomorrow:%F %T}'
+    has_time = tomorrow_str.split(' ')[-1] != '00:00:00'
+    db.execute_query(query, tomorrow_str if has_time else f'{tomorrow:%F}', task_id)
+    answer_text = texts.get('move').format(format_date(tomorrow), task['text'])
     kb = config.edit_keyboard(task_id, 'completed')
-    schedule_task(task_id, new_date)
+    schedule_task(task_id, tomorrow)
     await callback.message.edit_text(text=answer_text, parse_mode='HTML', reply_markup=kb)
 
 
